@@ -6,11 +6,11 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type Option struct {
 	Filename   string
-	TimeFormat string
 	MaxSize    int
 	MaxBackups int
 	MaxAge     int
@@ -19,22 +19,14 @@ type Option struct {
 	ZapLevel zapcore.Level
 }
 
-type Logger struct {
-	opt *Option
-}
+var (
+	timeFormat = "2006-01-02 15:04:05.000"
+)
 
-func New() *Logger {
-	return &Logger{}
-}
-
-func (l *Logger) Option(opt *Option) {
-	l.opt = opt
-}
-
-func (l *Logger) console() zapcore.Core {
+func console() zapcore.Core {
 	consoleWrite := zapcore.AddSync(io.MultiWriter(os.Stdout))
 	consoleConfig := zap.NewProductionEncoderConfig()
-	consoleConfig.EncodeTime = zapcore.TimeEncoderOfLayout(l.opt.TimeFormat)
+	consoleConfig.EncodeTime = zapcore.TimeEncoderOfLayout(timeFormat)
 	// color.
 	consoleConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 
@@ -45,12 +37,31 @@ func (l *Logger) console() zapcore.Core {
 	)
 }
 
-func InitGlobalConsole() {
-	l := &Logger{
-		opt: &Option{
-			TimeFormat: "2006-01-02 15:04:05.000",
-		},
+func file(opt *Option) zapcore.Core {
+	hook := &lumberjack.Logger{
+		Filename:   opt.Filename,
+		MaxSize:    opt.MaxSize,
+		MaxBackups: opt.MaxBackups,
+		MaxAge:     opt.MaxAge,
+		Compress:   opt.Compress,
 	}
 
-	zap.ReplaceGlobals(zap.New(l.console(), zap.AddCaller()))
+	fileWrite := zapcore.AddSync(io.MultiWriter(hook))
+	fileConfig := zap.NewProductionEncoderConfig()
+	fileConfig.EncodeTime = zapcore.TimeEncoderOfLayout(timeFormat)
+	fileCore := zapcore.NewCore(
+		zapcore.NewConsoleEncoder(fileConfig),
+		fileWrite,
+		opt.ZapLevel,
+	)
+	return fileCore
+}
+
+func InitGlobalConsole() {
+	zap.ReplaceGlobals(zap.New(console(), zap.AddCaller()))
+}
+
+func InitGlobalFile(opt *Option) {
+	core := zapcore.NewTee(console(), file(opt))
+	zap.ReplaceGlobals(zap.New(core, zap.AddCaller()))
 }
