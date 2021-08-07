@@ -57,11 +57,11 @@ func file(opt *Option) zapcore.Core {
 	return fileCore
 }
 
-func InitGlobalConsole() {
+func SimpleGlobalConsole() {
 	zap.ReplaceGlobals(zap.New(console(), zap.AddCaller()))
 }
 
-func InitGlobalFile(opt *Option) {
+func SimpleGlobalFile(opt *Option) {
 	core := zapcore.NewTee(console(), file(opt))
 	zap.ReplaceGlobals(zap.New(core, zap.AddCaller()))
 }
